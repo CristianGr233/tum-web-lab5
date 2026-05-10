@@ -1,21 +1,28 @@
 import sys
 from urllib.parse import urlparse, quote_plus
 
-from http_client import https_get
+from http_client import http_get, https_get
+from http_cache import get as cache_get, set as cache_set
 from html_utils import strip_html, get_body
 
 
+# ----------------------------
+# HELP
+# ----------------------------
 def help():
     print("""
 go2web CLI
 
 Usage:
-  python go2web.py -u <URL>
-  python go2web.py -s <query>
-  python go2web.py -h
+  python go2web.py -u <URL>         Fetch webpage (HTTP/HTTPS)
+  python go2web.py -s <query>       Search web (top 10 results)
+  python go2web.py -h               Help
 """)
 
 
+# ----------------------------
+# FETCH URL (-u)
+# ----------------------------
 def fetch_url(url):
     if not url.startswith("http"):
         url = "http://" + url
@@ -28,15 +35,36 @@ def fetch_url(url):
     if parsed.query:
         path += "?" + parsed.query
 
-    if parsed.scheme == "https":
-        response = https_get(host, path)
+    # ----------------------------
+    # CACHE
+    # ----------------------------
+    cached = cache_get(url)
+
+    if cached:
+        print("\n[CACHE HIT]\n")
+        response = cached
     else:
-        response = https_get(host, path)
+        if parsed.scheme == "https":
+            response = https_get(host, path)
+        else:
+            response = http_get(host, path)
 
+        cache_set(url, response)
+
+    # ----------------------------
+    # OUTPUT CLEANING
+    # ----------------------------
     body = get_body(response)
-    print(strip_html(body))
+    clean = strip_html(body)
+
+    print("\n" + "=" * 60)
+    print(clean)
+    print("=" * 60 + "\n")
 
 
+# ----------------------------
+# SEARCH (-s)
+# ----------------------------
 def search(query):
     print(f"\nSearching: {query}\n")
 
@@ -71,11 +99,18 @@ def search(query):
         print("No results found")
         return
 
-    for i, (t, l) in enumerate(output, 1):
-        print(f"{i}. {t}")
-        print(f"   {l}\n")
+    print("\n" + "=" * 60)
+
+    for i, (title, link) in enumerate(output, 1):
+        print(f"{i}. {title}")
+        print(f"   {link}\n")
+
+    print("=" * 60 + "\n")
 
 
+# ----------------------------
+# MAIN CLI ROUTER
+# ----------------------------
 def main():
     if len(sys.argv) < 2:
         help()
@@ -99,5 +134,12 @@ def main():
         search(" ".join(sys.argv[2:]))
 
     else:
-        print("Unknown command")
+        print(f"Unknown command: {cmd}")
         help()
+
+
+# ----------------------------
+# ENTRY POINT
+# ----------------------------
+if __name__ == "__main__":
+    main()
