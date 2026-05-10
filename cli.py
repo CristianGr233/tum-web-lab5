@@ -14,56 +14,80 @@ def help():
 go2web CLI
 
 Usage:
-  python go2web.py -u <URL>         Fetch webpage (HTTP/HTTPS)
+  python go2web.py -u <URL>         Fetch webpage
   python go2web.py -s <query>       Search web (top 10 results)
   python go2web.py -h               Help
 """)
 
 
 # ----------------------------
-# FETCH URL (-u)
+# FETCH URL WITH CACHE + REDIRECTS
 # ----------------------------
-def fetch_url(url):
+def fetch_url(url, max_redirects=5):
     if not url.startswith("http"):
         url = "http://" + url
 
-    parsed = urlparse(url)
+    for _ in range(max_redirects):
 
-    host = parsed.netloc
-    path = parsed.path or "/"
+        cached = cache_get(url)
 
-    if parsed.query:
-        path += "?" + parsed.query
-
-    # ----------------------------
-    # CACHE
-    # ----------------------------
-    cached = cache_get(url)
-
-    if cached:
-        print("\n[CACHE HIT]\n")
-        response = cached
-    else:
-        if parsed.scheme == "https":
-            response = https_get(host, path)
+        if cached:
+            print("[CACHE HIT]")
+            response = cached
         else:
-            response = http_get(host, path)
+            parsed = urlparse(url)
 
-        cache_set(url, response)
+            host = parsed.netloc
+            path = parsed.path or "/"
 
-    # ----------------------------
-    # OUTPUT CLEANING
-    # ----------------------------
-    body = get_body(response)
-    clean = strip_html(body)
+            if parsed.query:
+                path += "?" + parsed.query
 
-    print("\n" + "=" * 60)
-    print(clean)
-    print("=" * 60 + "\n")
+            if parsed.scheme == "https":
+                response = https_get(host, path)
+            else:
+                response = http_get(host, path)
+
+            cache_set(url, response)
+
+        # ----------------------------
+        # PARSE HEADERS
+        # ----------------------------
+        header_part = response.split("\r\n\r\n", 1)[0]
+
+        headers = {}
+        for line in header_part.split("\r\n")[1:]:
+            if ":" in line:
+                k, v = line.split(":", 1)
+                headers[k.lower()] = v.strip()
+
+        status = header_part.split("\r\n")[0]
+
+        # ----------------------------
+        # REDIRECT HANDLING
+        # ----------------------------
+        if "301" in status or "302" in status:
+            if "location" in headers:
+                url = headers["location"]
+                print(f"[Redirect → {url}]")
+                continue
+
+        # ----------------------------
+        # OUTPUT BODY
+        # ----------------------------
+        body = get_body(response)
+        clean = strip_html(body)
+
+        print("\n" + "=" * 60)
+        print(clean)
+        print("=" * 60 + "\n")
+        return
+
+    print("Too many redirects")
 
 
 # ----------------------------
-# SEARCH (-s)
+# SEARCH ENGINE (-s)
 # ----------------------------
 def search(query):
     print(f"\nSearching: {query}\n")
@@ -88,9 +112,7 @@ def search(query):
 
     for link, title in results:
         clean_title = strip_html(title)
-        clean_link = link
-
-        output.append((clean_title, clean_link))
+        output.append((clean_title, link))
 
         if len(output) == 10:
             break
@@ -101,15 +123,15 @@ def search(query):
 
     print("\n" + "=" * 60)
 
-    for i, (title, link) in enumerate(output, 1):
-        print(f"{i}. {title}")
-        print(f"   {link}\n")
+    for i, (t, l) in enumerate(output, 1):
+        print(f"{i}. {t}")
+        print(f"   {l}\n")
 
     print("=" * 60 + "\n")
 
 
 # ----------------------------
-# MAIN CLI ROUTER
+# MAIN
 # ----------------------------
 def main():
     if len(sys.argv) < 2:
@@ -134,12 +156,5 @@ def main():
         search(" ".join(sys.argv[2:]))
 
     else:
-        print(f"Unknown command: {cmd}")
+        print("Unknown command")
         help()
-
-
-# ----------------------------
-# ENTRY POINT
-# ----------------------------
-if __name__ == "__main__":
-    main()

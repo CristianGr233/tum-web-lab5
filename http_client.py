@@ -19,7 +19,6 @@ def raw_request(host, path, use_ssl=False):
             f"GET {path} HTTP/1.1\r\n"
             f"Host: {host}\r\n"
             f"User-Agent: go2web\r\n"
-            f"Accept: */*\r\n"
             f"Connection: close\r\n\r\n"
         )
 
@@ -39,8 +38,8 @@ def raw_request(host, path, use_ssl=False):
 
 
 def http_get(host, path):
-    return raw_request(host, path, use_ssl=False)
+    return raw_request(host, path, False)
 
 
 def https_get(host, path):
-    return raw_request(host, path, use_ssl=True)
+    return raw_request(host, path, True)
