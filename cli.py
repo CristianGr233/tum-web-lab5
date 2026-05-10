@@ -2,6 +2,7 @@ import sys
 from urllib.parse import urlparse
 
 from http_client import http_get, https_get
+from html_utils import strip_html, get_body
 
 
 def help():
@@ -32,9 +33,11 @@ def fetch_url(url):
     else:
         response = http_get(host, path)
 
-    # temporary raw output (we clean later)
+    body = get_body(response)
+    clean = strip_html(body)
+
     print("\n" + "=" * 50)
-    print(response)
+    print(clean)
     print("=" * 50 + "\n")
 
 
